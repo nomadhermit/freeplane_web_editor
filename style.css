@@ -1,0 +1,271 @@
+:root {
+  --bg: #1e1e2e;
+  --surface: #2a2a3c;
+  --surface2: #34344a;
+  --border: #44445a;
+  --text: #e0e0f0;
+  --muted: #a0a0b8;
+  --accent: #7aa2f7;
+  --accent-hover: #89b4fa;
+  --danger: #f38ba8;
+  --success: #a6e3a1;
+  --radius: 8px;
+  --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-shrink: 0;
+}
+
+header h1 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+button, select {
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+button:hover:not(:disabled), select:hover {
+  background: #3d3d55;
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.danger:hover:not(:disabled) {
+  background: #5c2a3a;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+#status {
+  margin-left: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+#tree-panel {
+  width: 42%;
+  min-width: 280px;
+  max-width: 520px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+#editor-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.panel-header {
+  padding: 0.6rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.node-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.node-actions button {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+#tree {
+  flex: 1;
+  overflow: auto;
+  padding: 0.75rem;
+}
+
+/* Tree nodes */
+.tree-node {
+  margin: 2px 0;
+  user-select: none;
+}
+
+.tree-node-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.tree-node-row:hover {
+  background: var(--surface2);
+}
+
+.tree-node-row.selected {
+  background: #3b4261;
+  outline: 1px solid var(--accent);
+}
+
+.toggle {
+  width: 1.1rem;
+  height: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.toggle.empty {
+  visibility: hidden;
+}
+
+.node-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.node-label.has-note::after {
+  content: " 📝";
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.children {
+  margin-left: 1.1rem;
+  border-left: 1px solid var(--border);
+  padding-left: 0.35rem;
+}
+
+/* Editor */
+#editor {
+  flex: 1;
+  padding: 1.25rem;
+  overflow: auto;
+}
+
+#editor.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.field {
+  margin-bottom: 1.25rem;
+}
+
+.field label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.field input[type="text"],
+.field textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+}
+
+.field input[type="text"]:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(122, 162, 247, 0.25);
+}
+
+.field textarea {
+  min-height: 160px;
+  line-height: 1.45;
+}
+
+.meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.5rem;
+}
+
+.meta code {
+  background: var(--surface2);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+}

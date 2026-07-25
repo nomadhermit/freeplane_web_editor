@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Freeplane Web Editor</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Freeplane Web Editor</h1>
+      <div class="toolbar">
+        <button id="btn-new" title="Create new map">＋ New</button>
+        <button id="btn-upload" title="Upload .mm file">⬆ Upload</button>
+        <input type="file" id="file-upload" accept=".mm,application/x-freemind,text/xml,application/xml" hidden />
+        <select id="map-select" title="Open existing map">
+          <option value="">— Open map —</option>
+        </select>
+        <button id="btn-save" disabled title="Save current map">💾 Save</button>
+        <button id="btn-download" disabled title="Download .mm file">⬇ Download</button>
+        <button id="btn-delete-map" disabled title="Delete map file" class="danger">🗑 Delete Map</button>
+        <span id="status"></span>
+      </div>
+    </header>
+
+    <main>
+      <aside id="tree-panel">
+        <div class="panel-header">
+          <span>Mind Map</span>
+          <div class="node-actions">
+            <button id="btn-add-child" disabled title="Add child node">＋ Child</button>
+            <button id="btn-add-sibling" disabled title="Add sibling node">＋ Sibling</button>
+            <button id="btn-move-up" disabled title="Move node up among siblings">↑</button>
+            <button id="btn-move-down" disabled title="Move node down among siblings">↓</button>
+            <button id="btn-sort-children" disabled title="Sort children A–Z">⇅</button>
+            <button id="btn-delete-node" disabled title="Delete selected node" class="danger">✕</button>
+          </div>
+        </div>
+        <div id="tree"></div>
+      </aside>
+
+      <section id="editor-panel">
+        <div class="panel-header">Node Editor</div>
+        <div id="editor" class="empty">
+          <p>Select a node to edit its text and note.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
