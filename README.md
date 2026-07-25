@@ -1,0 +1,62 @@
+# Freeplane Web Editor
+
+A lightweight Go web application that runs a localhost server for creating, viewing, editing, and saving **Freeplane / FreeMind `.mm` mind-map files**.
+
+## Features
+
+- **Local web server** (default `http://localhost:8080`)
+- **Create / Upload / Open / Save / Delete / Download** `.mm` files
+- **Tree UI** with expand/collapse
+- **Basic CRUD on nodes**:
+  - Create child / sibling
+  - Edit node text
+  - Edit node notes (stored as Freeplane `<richcontent TYPE="NOTE">`)
+  - Move node up / down among siblings (buttons or `Alt+↑` / `Alt+↓`)
+  - Sort children of selected node A–Z
+  - Delete node (and its subtree)
+- Round-trip compatible with Freeplane for basic maps (text + notes + hierarchy + folded state)
+
+## Requirements
+
+- Go 1.22+ (only standard library used — no external dependencies)
+
+## Quick start
+
+```bash
+cd freeplane-web
+go build -o freeplane-web .
+./freeplane-web
+```
+
+Then open **http://localhost:8080** in your browser.
+
+Maps are stored as `.mm` files in the `maps/` directory next to the binary.
+
+You can also set the port:
+
+```bash
+PORT=3000 ./freeplane-web
+```
+
+## API overview
+
+| Method | Path                  | Description                                      |
+|--------|-----------------------|--------------------------------------------------|
+| GET    | `/api/maps`           | List map names                                   |
+| POST   | `/api/maps`           | Create map `{ "name": "…" }`                     |
+| POST   | `/api/upload`         | Upload `.mm` (multipart field `file`; optional `overwrite=1`) |
+| GET    | `/api/map/{name}`     | Load map as JSON tree                            |
+| PUT    | `/api/map/{name}`     | Save JSON tree → `.mm`                           |
+| DELETE | `/api/map/{name}`     | Delete map file                                  |
+| GET    | `/api/download/{name}`| Download raw `.mm`                               |
+
+## Notes on format
+
+- Files use Freeplane-compatible XML (`version="1.0.1"`).
+- Node notes are written as simple XHTML inside `<richcontent TYPE="NOTE">`.
+- Only a practical subset of the format is supported (TEXT, ID, FOLDED, notes, hierarchy). Advanced Freeplane features (icons, attributes, styles, links, formulas, etc.) are ignored on load and not written on save.
+
+## Keyboard
+
+- `Ctrl+S` / `Cmd+S` — save current map
+- `Alt+↑` / `Alt+↓` — move selected node up / down among siblings
