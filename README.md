@@ -1,6 +1,10 @@
 # Freeplane Web Editor
 
-A lightweight Go web application that runs a localhost server for creating, viewing, editing, and saving **Freeplane / FreeMind `.mm` mind-map files**.
+A lightweight Go web application that runs a localhost server for creating, viewing, editing, and saving **Freeplane / FreeMind `.mm` mind-map files**. 
+
+!! Not intended to be a freeplane replacement, only simple editor/viewer !!
+!! for local use only, not for internet facing scenarios without proper security enhancements and review !!
+!! vibe coded with Grok as experiment !!
 
 ## Features
 
