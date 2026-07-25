@@ -281,11 +281,13 @@ main {
   content: " 📝🔗";
 }
 
-body.link-mode #tree {
+body.link-mode #tree,
+body.reparent-mode #tree {
   cursor: crosshair;
 }
 
-.tree-node-row.link-source {
+.tree-node-row.link-source,
+.tree-node-row.reparent-source {
   outline: 2px dashed var(--accent);
   background: #3b4261;
 }
@@ -293,6 +295,11 @@ body.link-mode #tree {
 .tree-node-row.link-target:hover {
   background: #2d4a3e;
   outline: 1px solid var(--success);
+}
+
+.tree-node-row.reparent-target:hover {
+  background: #3a3550;
+  outline: 1px solid #cba6f7;
 }
 
 button.active {

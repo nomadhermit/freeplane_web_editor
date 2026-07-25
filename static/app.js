@@ -8,6 +8,7 @@
   let selectedId = null;
   let dirty = false;
   let linkMode = false;          // when true, next node click creates a link
+  let reparentMode = false;      // when true, next node click becomes the new parent
 
   // ---------- DOM ----------
   const $ = (sel) => document.querySelector(sel);
@@ -24,6 +25,7 @@
   const btnMoveDown = $("#btn-move-down");
   const btnSortChildren = $("#btn-sort-children");
   const btnLink = $("#btn-link");
+  const btnReparent = $("#btn-reparent");
   const btnDeleteNode = $("#btn-delete-node");
   const treeEl = $("#tree");
   const editorEl = $("#editor");
@@ -135,6 +137,7 @@
     mapData = data;
     selectedId = data.root.id;
     linkMode = false;
+    reparentMode = false;
     setDirty(false);
     renderTree();
     renderEditor();
@@ -245,11 +248,15 @@
     if (node.id === selectedId) rowClass += " selected";
     if (linkMode && node.id !== selectedId) rowClass += " link-target";
     if (linkMode && node.id === selectedId) rowClass += " link-source";
+    if (reparentMode && node.id === selectedId) rowClass += " reparent-source";
+    if (reparentMode && node.id !== selectedId) rowClass += " reparent-target";
     row.className = rowClass;
     row.addEventListener("click", (e) => {
       e.stopPropagation();
       if (linkMode) {
         completeLink(node.id);
+      } else if (reparentMode) {
+        completeReparent(node.id);
       } else {
         selectNode(node.id);
       }
@@ -285,10 +292,8 @@
   }
 
   function selectNode(id) {
-    if (linkMode) {
-      // cancel link mode if selecting via other means
-      cancelLinkMode();
-    }
+    if (linkMode) cancelLinkMode();
+    if (reparentMode) cancelReparentMode();
     selectedId = id;
     renderTree();
     renderEditor();
@@ -390,10 +395,11 @@
 
   function updateToolbar() {
     const hasMap = !!currentName;
+    const modeActive = linkMode || reparentMode;
     btnSave.disabled = !hasMap || !dirty;
     btnDownload.disabled = !hasMap;
     btnDeleteMap.disabled = !hasMap;
-    btnAddChild.disabled = !selectedId || linkMode;
+    btnAddChild.disabled = !selectedId || modeActive;
 
     const found = selectedId && mapData ? findNode(mapData.root, selectedId) : null;
     const isRoot = !!(mapData && selectedId === mapData.root.id);
@@ -401,17 +407,24 @@
     const siblings = parent ? parent.children : null;
     const idx = siblings ? siblings.indexOf(found.node) : -1;
 
-    btnAddSibling.disabled = !selectedId || isRoot || linkMode;
-    btnDeleteNode.disabled = !selectedId || isRoot || linkMode;
-    btnMoveUp.disabled = !siblings || idx <= 0 || linkMode;
-    btnMoveDown.disabled = !siblings || idx < 0 || idx >= siblings.length - 1 || linkMode;
-    btnSortChildren.disabled = !found || !found.node.children || found.node.children.length < 2 || linkMode;
-    btnLink.disabled = !selectedId;
+    btnAddSibling.disabled = !selectedId || isRoot || modeActive;
+    btnDeleteNode.disabled = !selectedId || isRoot || modeActive;
+    btnMoveUp.disabled = !siblings || idx <= 0 || modeActive;
+    btnMoveDown.disabled = !siblings || idx < 0 || idx >= siblings.length - 1 || modeActive;
+    btnSortChildren.disabled = !found || !found.node.children || found.node.children.length < 2 || modeActive;
+
+    btnLink.disabled = !selectedId || reparentMode;
     btnLink.classList.toggle("active", linkMode);
-    btnLink.title = linkMode
-      ? "Cancel linking (Esc)"
-      : "Connect to another node";
+    btnLink.title = linkMode ? "Cancel linking (Esc)" : "Connect to another node";
+
+    btnReparent.disabled = !selectedId || isRoot || linkMode;
+    btnReparent.classList.toggle("active", reparentMode);
+    btnReparent.title = reparentMode
+      ? "Cancel move (Esc)"
+      : "Move node under another parent";
+
     document.body.classList.toggle("link-mode", linkMode);
+    document.body.classList.toggle("reparent-mode", reparentMode);
   }
 
   // ---------- CRUD operations ----------
@@ -545,6 +558,86 @@
     setStatus("Connection removed");
   }
 
+  // ---------- reparent (move under another node) ----------
+  function startReparentMode() {
+    if (!selectedId || !mapData) return;
+    if (selectedId === mapData.root.id) {
+      setStatus("Cannot move the root node", true);
+      return;
+    }
+    if (reparentMode) {
+      cancelReparentMode();
+      return;
+    }
+    if (linkMode) cancelLinkMode();
+    reparentMode = true;
+    setStatus("Move mode: click the new parent node (Esc to cancel)");
+    renderTree();
+    updateToolbar();
+  }
+
+  function cancelReparentMode() {
+    if (!reparentMode) return;
+    reparentMode = false;
+    setStatus("");
+    renderTree();
+    updateToolbar();
+  }
+
+  function isDescendantOf(ancestorId, nodeId) {
+    const anc = findNode(mapData.root, ancestorId);
+    if (!anc) return false;
+    let found = false;
+    walkNodes(anc.node, n => {
+      if (n.id === nodeId) found = true;
+    });
+    return found;
+  }
+
+  function completeReparent(newParentId) {
+    if (!reparentMode || !selectedId || !mapData) return;
+
+    if (newParentId === selectedId) {
+      setStatus("Cannot move a node under itself", true);
+      return;
+    }
+
+    // Prevent moving a node under one of its own descendants (would cycle)
+    if (isDescendantOf(selectedId, newParentId)) {
+      setStatus("Cannot move a node under its own descendant", true);
+      return;
+    }
+
+    const moving = findNode(mapData.root, selectedId);
+    const newParent = findNode(mapData.root, newParentId);
+    if (!moving || !moving.parent || !newParent) return;
+
+    // Already under this parent?
+    if (moving.parent.id === newParentId) {
+      setStatus("Node is already under that parent", true);
+      cancelReparentMode();
+      return;
+    }
+
+    // Detach from old parent
+    const oldSiblings = moving.parent.children;
+    const idx = oldSiblings.indexOf(moving.node);
+    if (idx >= 0) oldSiblings.splice(idx, 1);
+
+    // Attach under new parent
+    if (!newParent.node.children) newParent.node.children = [];
+    newParent.node.children.push(moving.node);
+    newParent.node._collapsed = false;
+
+    reparentMode = false;
+    setDirty(true);
+    setStatus(`Moved “${moving.node.text || "(empty)"}” under “${newParent.node.text || "(empty)"}”`);
+    expandPathTo(selectedId);
+    renderTree();
+    renderEditor();
+    updateToolbar();
+  }
+
   /** Expand collapsed ancestors so targetId is visible in the tree. */
   function expandPathTo(targetId) {
     if (!mapData) return;
@@ -620,6 +713,7 @@
   btnMoveDown.addEventListener("click", () => moveNode(1));
   btnSortChildren.addEventListener("click", sortChildren);
   btnLink.addEventListener("click", startLinkMode);
+  btnReparent.addEventListener("click", startReparentMode);
   btnDeleteNode.addEventListener("click", deleteNode);
 
   mapSelect.addEventListener("change", () => {
@@ -629,10 +723,17 @@
 
   // keyboard shortcuts
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && linkMode) {
-      e.preventDefault();
-      cancelLinkMode();
-      return;
+    if (e.key === "Escape") {
+      if (linkMode) {
+        e.preventDefault();
+        cancelLinkMode();
+        return;
+      }
+      if (reparentMode) {
+        e.preventDefault();
+        cancelReparentMode();
+        return;
+      }
     }
     if (e.ctrlKey || e.metaKey) {
       if (e.key === "s") {
@@ -642,6 +743,10 @@
       if (e.key === "l" || e.key === "L") {
         e.preventDefault();
         if (!btnLink.disabled) startLinkMode();
+      }
+      if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        if (!btnReparent.disabled) startReparentMode();
       }
     }
     // Alt+↑ / Alt+↓ move among siblings (ignore when typing in inputs)
