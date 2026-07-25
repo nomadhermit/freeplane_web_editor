@@ -763,6 +763,62 @@
     }
   });
 
+  // ---------- resizable navigation pane ----------
+  (function initResize() {
+    const handle = $("#resize-handle");
+    const panel = $("#tree-panel");
+    if (!handle || !panel) return;
+
+    const STORAGE_KEY = "freeplane-web-tree-width";
+    const MIN = 200;
+    const MAX_RATIO = 0.75;
+
+    // Restore saved width
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const w = parseInt(saved, 10);
+        if (w >= MIN) panel.style.width = w + "px";
+      }
+    } catch (_) { /* ignore */ }
+
+    let startX = 0;
+    let startWidth = 0;
+
+    function onMove(e) {
+      const dx = e.clientX - startX;
+      const max = Math.floor(window.innerWidth * MAX_RATIO);
+      let w = Math.min(max, Math.max(MIN, startWidth + dx));
+      panel.style.width = w + "px";
+    }
+
+    function onUp() {
+      handle.classList.remove("dragging");
+      document.body.classList.remove("resizing");
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      try {
+        localStorage.setItem(STORAGE_KEY, String(panel.offsetWidth));
+      } catch (_) { /* ignore */ }
+    }
+
+    handle.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      startX = e.clientX;
+      startWidth = panel.offsetWidth;
+      handle.classList.add("dragging");
+      document.body.classList.add("resizing");
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+
+    // Double-click handle to reset to default width
+    handle.addEventListener("dblclick", () => {
+      panel.style.width = "380px";
+      try { localStorage.setItem(STORAGE_KEY, "380"); } catch (_) { /* ignore */ }
+    });
+  })();
+
   // ---------- init ----------
   refreshMapList().catch(e => setStatus(e.message, true));
   updateToolbar();
