@@ -12,6 +12,7 @@ A lightweight Go web application that runs a localhost server for creating, view
   - Edit node text
   - Edit node notes (stored as Freeplane `<richcontent TYPE="NOTE">`)
   - Move node up / down among siblings (buttons or `Alt+↑` / `Alt+↓`)
+  - **Move node under another parent** (reparent)
   - Sort children of selected node A–Z
   - **Connect nodes** with bidirectional links (Freeplane `<arrowlink>`)
   - Jump to a connected node from the editor panel
@@ -63,5 +64,6 @@ PORT=3000 ./freeplane-web
 
 - `Ctrl+S` / `Cmd+S` — save current map
 - `Ctrl+L` / `Cmd+L` — start (or cancel) link mode
-- `Esc` — cancel link mode
+- `Ctrl+M` / `Cmd+M` — start (or cancel) reparent / move mode
+- `Esc` — cancel link or reparent mode
 - `Alt+↑` / `Alt+↓` — move selected node up / down among siblings
