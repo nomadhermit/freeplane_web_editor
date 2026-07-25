@@ -7,6 +7,7 @@
   let mapData = null;            // { version, root }
   let selectedId = null;
   let dirty = false;
+  let linkMode = false;          // when true, next node click creates a link
 
   // ---------- DOM ----------
   const $ = (sel) => document.querySelector(sel);
@@ -22,6 +23,7 @@
   const btnMoveUp = $("#btn-move-up");
   const btnMoveDown = $("#btn-move-down");
   const btnSortChildren = $("#btn-sort-children");
+  const btnLink = $("#btn-link");
   const btnDeleteNode = $("#btn-delete-node");
   const treeEl = $("#tree");
   const editorEl = $("#editor");
@@ -59,6 +61,45 @@
     return set;
   }
 
+  /** Walk entire tree and call fn(node) for every node. */
+  function walkNodes(node, fn) {
+    if (!node) return;
+    fn(node);
+    (node.children || []).forEach(c => walkNodes(c, fn));
+  }
+
+  /** Ensure node.links is always an array. */
+  function ensureLinks(node) {
+    if (!Array.isArray(node.links)) node.links = [];
+    return node.links;
+  }
+
+  /**
+   * All connected node IDs for a node (outgoing + incoming).
+   * Bidirectional: links stored on either side count.
+   */
+  function getConnectedIds(nodeId) {
+    const ids = new Set();
+    if (!mapData) return ids;
+    const found = findNode(mapData.root, nodeId);
+    if (found) {
+      ensureLinks(found.node).forEach(id => ids.add(id));
+    }
+    // incoming
+    walkNodes(mapData.root, (n) => {
+      if (n.id !== nodeId && ensureLinks(n).includes(nodeId)) {
+        ids.add(n.id);
+      }
+    });
+    return ids;
+  }
+
+  function getNodeText(id) {
+    if (!mapData) return id;
+    const f = findNode(mapData.root, id);
+    return f ? (f.node.text || "(empty)") : id;
+  }
+
   // ---------- API ----------
   async function api(method, path, body) {
     const opts = { method, headers: {} };
@@ -93,6 +134,7 @@
     currentName = name;
     mapData = data;
     selectedId = data.root.id;
+    linkMode = false;
     setDirty(false);
     renderTree();
     renderEditor();
@@ -193,15 +235,24 @@
 
   function buildTreeNode(node, depth) {
     const hasChildren = node.children && node.children.length > 0;
+    const hasLinks = getConnectedIds(node.id).size > 0;
     const wrapper = document.createElement("div");
     wrapper.className = "tree-node";
     wrapper.dataset.id = node.id;
 
     const row = document.createElement("div");
-    row.className = "tree-node-row" + (node.id === selectedId ? " selected" : "");
+    let rowClass = "tree-node-row";
+    if (node.id === selectedId) rowClass += " selected";
+    if (linkMode && node.id !== selectedId) rowClass += " link-target";
+    if (linkMode && node.id === selectedId) rowClass += " link-source";
+    row.className = rowClass;
     row.addEventListener("click", (e) => {
       e.stopPropagation();
-      selectNode(node.id);
+      if (linkMode) {
+        completeLink(node.id);
+      } else {
+        selectNode(node.id);
+      }
     });
 
     const toggle = document.createElement("span");
@@ -216,7 +267,7 @@
     }
 
     const label = document.createElement("span");
-    label.className = "node-label" + (node.note ? " has-note" : "");
+    label.className = "node-label" + (node.note ? " has-note" : "") + (hasLinks ? " has-link" : "");
     label.textContent = node.text || "(empty)";
     label.title = node.text;
 
@@ -234,6 +285,10 @@
   }
 
   function selectNode(id) {
+    if (linkMode) {
+      // cancel link mode if selecting via other means
+      cancelLinkMode();
+    }
     selectedId = id;
     renderTree();
     renderEditor();
@@ -253,6 +308,21 @@
       return;
     }
     const node = found.node;
+    const connected = [...getConnectedIds(node.id)];
+
+    let linksHtml = "";
+    if (connected.length === 0) {
+      linksHtml = `<p class="links-empty">No connections. Click <strong>🔗 Link</strong> then select another node.</p>`;
+    } else {
+      linksHtml = `<ul class="link-list">` + connected.map(id => {
+        const text = escapeHtml(getNodeText(id));
+        return `<li>
+          <button type="button" class="link-goto" data-id="${escapeAttr(id)}" title="Go to node">${text}</button>
+          <button type="button" class="link-remove" data-id="${escapeAttr(id)}" title="Remove connection">✕</button>
+        </li>`;
+      }).join("") + `</ul>`;
+    }
+
     editorEl.className = "";
     editorEl.innerHTML = `
       <div class="field">
@@ -261,11 +331,16 @@
       </div>
       <div class="field">
         <label for="node-note">Note</label>
-        <textarea id="node-note" rows="8" placeholder="Optional note for this node…">${escapeHtml(node.note || "")}</textarea>
+        <textarea id="node-note" rows="6" placeholder="Optional note for this node…">${escapeHtml(node.note || "")}</textarea>
+      </div>
+      <div class="field">
+        <label>Connected nodes</label>
+        <div class="links-panel">${linksHtml}</div>
       </div>
       <div class="meta">
         ID: <code>${escapeHtml(node.id)}</code>
         &nbsp;·&nbsp; Children: ${node.children ? node.children.length : 0}
+        &nbsp;·&nbsp; Links: ${connected.length}
       </div>
     `;
 
@@ -275,7 +350,6 @@
     textInput.addEventListener("input", () => {
       node.text = textInput.value;
       setDirty(true);
-      // update label in tree without full re-render for snappiness
       const row = treeEl.querySelector(`[data-id="${node.id}"] > .tree-node-row .node-label`);
       if (row) {
         row.textContent = node.text || "(empty)";
@@ -290,6 +364,26 @@
       if (row) row.classList.toggle("has-note", !!node.note);
     });
 
+    editorEl.querySelectorAll(".link-goto").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const targetId = btn.dataset.id;
+        // Expand ancestors so the target is visible
+        expandPathTo(targetId);
+        selectNode(targetId);
+        // Scroll into view
+        requestAnimationFrame(() => {
+          const el = treeEl.querySelector(`[data-id="${targetId}"] > .tree-node-row`);
+          if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        });
+      });
+    });
+
+    editorEl.querySelectorAll(".link-remove").forEach(btn => {
+      btn.addEventListener("click", () => {
+        removeLink(selectedId, btn.dataset.id);
+      });
+    });
+
     textInput.focus();
     textInput.select();
   }
@@ -299,7 +393,7 @@
     btnSave.disabled = !hasMap || !dirty;
     btnDownload.disabled = !hasMap;
     btnDeleteMap.disabled = !hasMap;
-    btnAddChild.disabled = !selectedId;
+    btnAddChild.disabled = !selectedId || linkMode;
 
     const found = selectedId && mapData ? findNode(mapData.root, selectedId) : null;
     const isRoot = !!(mapData && selectedId === mapData.root.id);
@@ -307,11 +401,17 @@
     const siblings = parent ? parent.children : null;
     const idx = siblings ? siblings.indexOf(found.node) : -1;
 
-    btnAddSibling.disabled = !selectedId || isRoot;
-    btnDeleteNode.disabled = !selectedId || isRoot;
-    btnMoveUp.disabled = !siblings || idx <= 0;
-    btnMoveDown.disabled = !siblings || idx < 0 || idx >= siblings.length - 1;
-    btnSortChildren.disabled = !found || !found.node.children || found.node.children.length < 2;
+    btnAddSibling.disabled = !selectedId || isRoot || linkMode;
+    btnDeleteNode.disabled = !selectedId || isRoot || linkMode;
+    btnMoveUp.disabled = !siblings || idx <= 0 || linkMode;
+    btnMoveDown.disabled = !siblings || idx < 0 || idx >= siblings.length - 1 || linkMode;
+    btnSortChildren.disabled = !found || !found.node.children || found.node.children.length < 2 || linkMode;
+    btnLink.disabled = !selectedId;
+    btnLink.classList.toggle("active", linkMode);
+    btnLink.title = linkMode
+      ? "Cancel linking (Esc)"
+      : "Connect to another node";
+    document.body.classList.toggle("link-mode", linkMode);
   }
 
   // ---------- CRUD operations ----------
@@ -324,6 +424,7 @@
       text: "New node",
       note: "",
       folded: false,
+      links: [],
       children: []
     };
     if (!found.node.children) found.node.children = [];
@@ -344,6 +445,7 @@
       text: "New node",
       note: "",
       folded: false,
+      links: [],
       children: []
     };
     const idx = found.parent.children.indexOf(found.node);
@@ -364,6 +466,17 @@
     const found = findNode(mapData.root, selectedId);
     if (!found || !found.parent) return;
     if (!confirm("Delete this node and all its children?")) return;
+
+    // Collect IDs being removed (node + descendants)
+    const removed = new Set();
+    walkNodes(found.node, n => removed.add(n.id));
+
+    // Strip links to/from removed nodes across the whole tree
+    walkNodes(mapData.root, n => {
+      if (removed.has(n.id)) return;
+      n.links = ensureLinks(n).filter(id => !removed.has(id));
+    });
+
     const idx = found.parent.children.indexOf(found.node);
     found.parent.children.splice(idx, 1);
     selectedId = found.parent.id;
@@ -371,6 +484,81 @@
     renderTree();
     renderEditor();
     updateToolbar();
+  }
+
+  // ---------- linking ----------
+  function startLinkMode() {
+    if (!selectedId || !mapData) return;
+    if (linkMode) {
+      cancelLinkMode();
+      return;
+    }
+    linkMode = true;
+    setStatus("Link mode: click another node to connect (Esc to cancel)");
+    renderTree();
+    updateToolbar();
+  }
+
+  function cancelLinkMode() {
+    if (!linkMode) return;
+    linkMode = false;
+    setStatus("");
+    renderTree();
+    updateToolbar();
+  }
+
+  function completeLink(targetId) {
+    if (!linkMode || !selectedId || !mapData) return;
+    if (targetId === selectedId) {
+      setStatus("Cannot link a node to itself", true);
+      return;
+    }
+    const src = findNode(mapData.root, selectedId);
+    const dst = findNode(mapData.root, targetId);
+    if (!src || !dst) return;
+
+    const srcLinks = ensureLinks(src.node);
+    const dstLinks = ensureLinks(dst.node);
+
+    // Bidirectional
+    if (!srcLinks.includes(targetId)) srcLinks.push(targetId);
+    if (!dstLinks.includes(selectedId)) dstLinks.push(selectedId);
+
+    linkMode = false;
+    setDirty(true);
+    setStatus(`Linked “${src.node.text || "(empty)"}” ↔ “${dst.node.text || "(empty)"}”`);
+    renderTree();
+    renderEditor();
+    updateToolbar();
+  }
+
+  function removeLink(aId, bId) {
+    if (!mapData) return;
+    const a = findNode(mapData.root, aId);
+    const b = findNode(mapData.root, bId);
+    if (a) a.node.links = ensureLinks(a.node).filter(id => id !== bId);
+    if (b) b.node.links = ensureLinks(b.node).filter(id => id !== aId);
+    setDirty(true);
+    renderTree();
+    renderEditor();
+    updateToolbar();
+    setStatus("Connection removed");
+  }
+
+  /** Expand collapsed ancestors so targetId is visible in the tree. */
+  function expandPathTo(targetId) {
+    if (!mapData) return;
+    function seek(node) {
+      if (node.id === targetId) return true;
+      for (const c of node.children || []) {
+        if (seek(c)) {
+          node._collapsed = false;
+          return true;
+        }
+      }
+      return false;
+    }
+    seek(mapData.root);
   }
 
   function moveNode(direction) {
@@ -431,6 +619,7 @@
   btnMoveUp.addEventListener("click", () => moveNode(-1));
   btnMoveDown.addEventListener("click", () => moveNode(1));
   btnSortChildren.addEventListener("click", sortChildren);
+  btnLink.addEventListener("click", startLinkMode);
   btnDeleteNode.addEventListener("click", deleteNode);
 
   mapSelect.addEventListener("change", () => {
@@ -440,10 +629,19 @@
 
   // keyboard shortcuts
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && linkMode) {
+      e.preventDefault();
+      cancelLinkMode();
+      return;
+    }
     if (e.ctrlKey || e.metaKey) {
       if (e.key === "s") {
         e.preventDefault();
         if (!btnSave.disabled) saveMap().catch(err => setStatus(err.message, true));
+      }
+      if (e.key === "l" || e.key === "L") {
+        e.preventDefault();
+        if (!btnLink.disabled) startLinkMode();
       }
     }
     // Alt+↑ / Alt+↓ move among siblings (ignore when typing in inputs)
