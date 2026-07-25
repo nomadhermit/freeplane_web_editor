@@ -1,12 +1,6 @@
 # Freeplane Web Editor
 
-A lightweight Go web application that runs a localhost server for creating, viewing, editing, and saving **Freeplane / FreeMind `.mm` mind-map files**. 
-
-!! Not intended to be a freeplane replacement, only simple editor/viewer !!
-
-!! for local use only, not for internet facing scenarios without proper security enhancements and review !!
-
-!! vibe coded with Grok as experiment !!
+A lightweight Go web application that runs a localhost server for creating, viewing, editing, and saving **Freeplane / FreeMind `.mm` mind-map files**.
 
 ## Features
 
@@ -19,8 +13,10 @@ A lightweight Go web application that runs a localhost server for creating, view
   - Edit node notes (stored as Freeplane `<richcontent TYPE="NOTE">`)
   - Move node up / down among siblings (buttons or `Alt+↑` / `Alt+↓`)
   - Sort children of selected node A–Z
-  - Delete node (and its subtree)
-- Round-trip compatible with Freeplane for basic maps (text + notes + hierarchy + folded state)
+  - **Connect nodes** with bidirectional links (Freeplane `<arrowlink>`)
+  - Jump to a connected node from the editor panel
+  - Delete node (and its subtree; links cleaned up)
+- Round-trip compatible with Freeplane for basic maps (text + notes + hierarchy + folded state + arrow links)
 
 ## Requirements
 
@@ -60,9 +56,12 @@ PORT=3000 ./freeplane-web
 
 - Files use Freeplane-compatible XML (`version="1.0.1"`).
 - Node notes are written as simple XHTML inside `<richcontent TYPE="NOTE">`.
-- Only a practical subset of the format is supported (TEXT, ID, FOLDED, notes, hierarchy). Advanced Freeplane features (icons, attributes, styles, links, formulas, etc.) are ignored on load and not written on save.
+- Node connections are stored as Freeplane `<arrowlink DESTINATION="…">` (written on both ends for bidirectional links).
+- Supported subset: TEXT, ID, FOLDED, notes, hierarchy, arrow links. Icons, attributes, styles, formulas, etc. are ignored on load and not written on save.
 
 ## Keyboard
 
 - `Ctrl+S` / `Cmd+S` — save current map
+- `Ctrl+L` / `Cmd+L` — start (or cancel) link mode
+- `Esc` — cancel link mode
 - `Alt+↑` / `Alt+↓` — move selected node up / down among siblings

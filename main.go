@@ -35,6 +35,7 @@ type JSONNode struct {
 	Note     string      `json:"note"`
 	Folded   bool        `json:"folded"`
 	Position string      `json:"position,omitempty"`
+	Links    []string    `json:"links"` // destination node IDs (arrow links)
 	Children []*JSONNode `json:"children"`
 }
 
@@ -47,14 +48,20 @@ type XMLMap struct {
 }
 
 type XMLNode struct {
-	Text        string          `xml:"TEXT,attr"`
-	ID          string          `xml:"ID,attr"`
-	Created     string          `xml:"CREATED,attr,omitempty"`
-	Modified    string          `xml:"MODIFIED,attr,omitempty"`
-	Folded      string          `xml:"FOLDED,attr,omitempty"`
-	Position    string          `xml:"POSITION,attr,omitempty"`
+	Text        string           `xml:"TEXT,attr"`
+	ID          string           `xml:"ID,attr"`
+	Created     string           `xml:"CREATED,attr,omitempty"`
+	Modified    string           `xml:"MODIFIED,attr,omitempty"`
+	Folded      string           `xml:"FOLDED,attr,omitempty"`
+	Position    string           `xml:"POSITION,attr,omitempty"`
+	ArrowLinks  []XMLArrowLink   `xml:"arrowlink"`
 	RichContent []XMLRichContent `xml:"richcontent"`
-	Children    []*XMLNode      `xml:"node"`
+	Children    []*XMLNode       `xml:"node"`
+}
+
+type XMLArrowLink struct {
+	Destination string `xml:"DESTINATION,attr"`
+	Color       string `xml:"COLOR,attr,omitempty"`
 }
 
 type XMLRichContent struct {
@@ -145,6 +152,7 @@ func createMap(w http.ResponseWriter, r *http.Request) {
 		ID:       newID(),
 		Text:     name,
 		Note:     "",
+		Links:    []string{},
 		Children: []*JSONNode{},
 	}
 	jm := &JSONMap{Version: version, Root: root}
@@ -344,7 +352,13 @@ func xmlNodeToJSON(n *XMLNode) *JSONNode {
 		Text:     n.Text,
 		Folded:   n.Folded == "true",
 		Position: n.Position,
+		Links:    make([]string, 0, len(n.ArrowLinks)),
 		Children: make([]*JSONNode, 0, len(n.Children)),
+	}
+	for _, al := range n.ArrowLinks {
+		if al.Destination != "" {
+			jn.Links = append(jn.Links, al.Destination)
+		}
 	}
 	// Extract note from richcontent
 	for _, rc := range n.RichContent {
@@ -356,10 +370,6 @@ func xmlNodeToJSON(n *XMLNode) *JSONNode {
 	for _, c := range n.Children {
 		jn.Children = append(jn.Children, xmlNodeToJSON(c))
 	}
-	// Guarantee non-nil slice for JSON
-	if jn.Children == nil {
-		jn.Children = []*JSONNode{}
-	}
 	return jn
 }
 
@@ -369,15 +379,24 @@ func jsonNodeToXML(n *JSONNode) *XMLNode {
 	}
 	now := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	xn := &XMLNode{
-		Text:     n.Text,
-		ID:       n.ID,
-		Created:  now, // Freeplane accepts; we overwrite on every save for simplicity
-		Modified: now,
-		Position: n.Position,
-		Children: make([]*XMLNode, 0, len(n.Children)),
+		Text:       n.Text,
+		ID:         n.ID,
+		Created:    now, // Freeplane accepts; we overwrite on every save for simplicity
+		Modified:   now,
+		Position:   n.Position,
+		ArrowLinks: make([]XMLArrowLink, 0, len(n.Links)),
+		Children:   make([]*XMLNode, 0, len(n.Children)),
 	}
 	if n.Folded {
 		xn.Folded = "true"
+	}
+	for _, dest := range n.Links {
+		if dest != "" {
+			xn.ArrowLinks = append(xn.ArrowLinks, XMLArrowLink{
+				Destination: dest,
+				Color:       "#0000ff",
+			})
+		}
 	}
 	if n.Note != "" {
 		// Simple XHTML note
